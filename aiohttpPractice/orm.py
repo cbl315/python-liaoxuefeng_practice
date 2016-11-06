@@ -49,7 +49,7 @@ def select(sql, args, size=None):
     log(sql, args)
     global __pool
     with (yield from __pool) as conn:
-        cur = yield from conn.cursor()
+        cur = yield from conn.cursor(aiomysql.DictCursor)
         yield from cur.execute(sql.replace('?', '%s'), args or ())
         if size:
             rs = yield from cur.fetchmany(size)
@@ -78,6 +78,7 @@ def execute(sql, args):
 class ModelMetaclass(type):
 
     def __new__(cls, name, bases, attrs):
+        logging.debug('metaclass')
         if name=='Model':
             return type.__new__(cls, name, bases, attrs)
         # get table name
@@ -110,7 +111,7 @@ class ModelMetaclass(type):
             attrs['__primary_key__'] = primaryKey
             attrs['__fields__'] = fields
             # default SELECT, INSERT, UPDATE, DELETE sql command
-            attrs['__select__'] = 'select `%s`, `%s` from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
+            attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
             attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
             attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
             attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
@@ -158,6 +159,7 @@ class Model(dict, metaclass=ModelMetaclass):
             else:
                 raise ValueError('Invalid limit value: %s' % str(limit))
         rs = yield from select(' '.join(sql), args)
+        print(rs)
         return [cls(**r) for r in rs]
 
     @classmethod
@@ -222,7 +224,8 @@ class Model(dict, metaclass=ModelMetaclass):
             # print('self[%s]:%s'%(key, self[key]))
             # print(self)
             value = self[key]
-            print(self.email, self.passwd, self.name, self.image, 'self:', self)
+            print('email:%s, passwd:%s, name:%s, image:%s' % (self['email'], self['passwd'], self['name'], self['image']))
+            print(self.email, self.passwd, self.name, self.image, '\n','self:', self)
         else:
             value = None
         # print('getValueOrDefault self:%s' % self)
